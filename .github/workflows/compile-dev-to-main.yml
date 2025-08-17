@@ -1,0 +1,54 @@
+name: Compile Dev to Main
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Get latest commit message
+        id: commit_msg
+        run: echo "COMMIT_MSG=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+      
+      - name: Checkout main branch (or create)
+        run: |
+          git fetch origin main || true
+          git checkout main || git checkout -b main
+
+      - name: Reset main to dev
+        run: |
+          git reset --hard dev       # main ahora es idéntico a dev
+          git clean -fd              # elimina archivos no trackeados en main
+
+      - name: Compile TypeScript
+        run: |
+          npm ci
+          npm install --save-dev typescript
+          npx tsc
+
+      - name: Commit and force push dist
+        run: |
+          git add dist
+          git commit -m "$COMMIT_MSG [ci skip]" || echo "No changes to commit"
+          git push origin main --force
